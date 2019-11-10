@@ -16,14 +16,10 @@
 */
 
 using System;
-using System.IO;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
 using Contracts;
-using Contracts.Parameters;
-using KSP;
+using KSP.Localization;
 using KSPAchievements;
 
 // Thanks to MrHappyFace for the intial code I used to figure out Contracts
@@ -32,6 +28,7 @@ namespace StationScience.Contracts
 {
     public class StnSciContract : Contract, Parameters.PartRelated, Parameters.BodyRelated
     {
+
         CelestialBody targetBody = null;
         AvailablePart experimentType = null;
 
@@ -62,7 +59,7 @@ namespace StationScience.Contracts
         {
             if (standardDeviation <= 0.0)
             {
-                Debug.LogWarning("Invalid standard deviation: " + standardDeviation);
+                StnSciScenario.LogWarning("Invalid standard deviation: " + standardDeviation);
                 return 0;
             }
               // Use Box-Muller algorithm
@@ -102,7 +99,7 @@ namespace StationScience.Contracts
             }
             else if (shape <= 0.0)
             {
-                Debug.LogWarning("Invalid Gamma shape: " + shape);
+                StnSciScenario.LogWarning("Invalid Gamma shape: " + shape);
                 return 0;
             }
             else
@@ -118,7 +115,9 @@ namespace StationScience.Contracts
             foreach (string entry in set)
             {
                 AvailablePart part = PartLoader.getPartInfoByName(entry);
-                if (!(ResearchAndDevelopment.PartTechAvailable(part) && ResearchAndDevelopment.PartModelPurchased(part)))
+                if (!(ResearchAndDevelopment.PartTechAvailable(part) /*&& ResearchAndDevelopment.PartModelPurchased(part)*/))
+                    //In career mode I certainly don't purchase parts until I need them to fulfil a contract
+                    //And if you can't get the contracts until you have purchased them...
                     return false; 
             }
             return true;
@@ -147,8 +146,8 @@ namespace StationScience.Contracts
         {
             if (ActiveCount() >= StnSciScenario.Instance.settings.maxContracts)
             {
-                Debug.Log("StationScience contracts cap hit (" +
-                    StnSciScenario.Instance.settings.maxContracts + ").");
+                /*StnSciScenario.Log("StationScience contracts cap hit (" +
+                    StnSciScenario.Instance.settings.maxContracts + ").");*/
                 return false;
             }
             double xp = StnSciScenario.Instance.xp + Reputation.Instance.reputation * StnSciScenario.Instance.settings.reputationFactor;
@@ -160,17 +159,15 @@ namespace StationScience.Contracts
                 xp *= StnSciScenario.Instance.settings.exceptionalMultiplier;
             if (xp <= 0.5)
                 xp = 0.5;
-
             List<string> experiments = GetUnlockedExperiments();
             List<CelestialBody> bodies = GetBodies_Reached(true, false);
-
+            
             List<ContractCandidate> candidates = new List<ContractCandidate>();
             double totalWeight = 0.0;
 
             //Get most difficult combination of planet and experiment that doesn't exceed random difficulty target
             foreach (var exp in experiments)
             {
-                Debug.Log("Experiment: " + exp);
                 double expValue;
                 try
                 {
@@ -182,11 +179,9 @@ namespace StationScience.Contracts
                 }
                 foreach (var body in bodies)
                 {
-                    Debug.Log("Body: " + body.name);
                     int acount = ActiveCount(exp, body);
                     if (acount > 0)
                     {
-                        Debug.Log("Contract already active!");
                         continue;
                     }
                     double plaValue;
@@ -211,7 +206,6 @@ namespace StationScience.Contracts
                     totalWeight += candidate.weight;
                 }
             }
-            Debug.Log("Candidate List: " + candidates.Count);
             double rand = GetUniform() * totalWeight;
             ContractCandidate chosen = null;
             foreach (var cand in candidates)
@@ -227,7 +221,6 @@ namespace StationScience.Contracts
 
             if (chosen == null)
             {
-                Debug.LogError("Couldn't find appropriate planet/experiment!");
                 return false;
             }
 
@@ -246,7 +239,6 @@ namespace StationScience.Contracts
             base.SetExpiry();
 
             float sciReward = StnSciScenario.Instance.settings.contractScience.calcReward(v, first_time);
-            Debug.Log("SciReward: " + sciReward);
             base.SetScience(sciReward, targetBody);
 
             base.SetDeadlineYears(StnSciScenario.Instance.settings.contractDeadline.calcReward(v, first_time), targetBody);
@@ -265,12 +257,10 @@ namespace StationScience.Contracts
             int ret = 0;
             if (ContractSystem.Instance == null)
             {
-                Debug.Log("ContractSystem Instance is null");
                 return 0;
             }
             if (ContractSystem.Instance.Contracts == null)
             {
-                Debug.Log("ContractSystem ContratsFinished is null");
                 return 0;
             }
             foreach(Contract con in ContractSystem.Instance.Contracts)
@@ -281,7 +271,7 @@ namespace StationScience.Contracts
                   (exp == null || sscon.experimentType != null) &&
                   (body == null || sscon.targetBody != null) &&
                   ((exp == null || exp == sscon.experimentType.name) &&
-                   (body == null || body.theName == sscon.targetBody.theName)))
+                   (body == null || body.name == sscon.targetBody.name)))
                     ret += 1;
             }
             return ret;
@@ -292,12 +282,10 @@ namespace StationScience.Contracts
             int ret = 0;
             if (ContractSystem.Instance == null)
             {
-                Debug.Log("ContractSystem Instance is null");
                 return 0;
             }
             if (ContractSystem.Instance.ContractsFinished == null)
             {
-                Debug.Log("ContractSystem ContratsFinished is null");
                 return 0;
             }
             foreach(Contract con in ContractSystem.Instance.ContractsFinished)
@@ -308,7 +296,7 @@ namespace StationScience.Contracts
                   (exp == null || sscon.experimentType != null) &&
                   (body == null || sscon.targetBody != null) &&
                   ((exp == null || exp == sscon.experimentType.name) &&
-                   (body == null || body.theName == sscon.targetBody.theName)))
+                   (body == null || body.name == sscon.targetBody.name)))
                     ret += 1;
             }
             return ret;
@@ -319,7 +307,7 @@ namespace StationScience.Contracts
             experimentType = PartLoader.getPartInfoByName(exp);
             if (experimentType == null)
             {
-                Debug.LogError("Couldn't find experiment part: " + exp);
+                StnSciScenario.LogError("Couldn't find experiment part: " + exp);
                 return false;
             }
             return true;
@@ -330,7 +318,7 @@ namespace StationScience.Contracts
             targetBody = FlightGlobals.Bodies.FirstOrDefault(body => body.bodyName.ToLower() == planet.ToLower());
             if (targetBody == null)
             {
-                Debug.LogError("Couldn't find planet: " + planet);
+                StnSciScenario.LogError("Couldn't find planet: " + planet);
                 return false;
             }
             return true;
@@ -351,20 +339,20 @@ namespace StationScience.Contracts
         }
         protected override string GetTitle()
         {
-            return "Perform " + experimentType.title + " in orbit around " + targetBody.theName;
+            return Localizer.Format("#autoLOC_StatSciContract_Title", experimentType.title, targetBody.name);
         }
         protected override string GetDescription()
         {
             //those 3 strings appear to do nothing
-            return TextGen.GenerateBackStories(Agent.Name, Agent.GetMindsetString(), "experiment", "station", "kill all humans", new System.Random().Next());
+            return TextGen.GenerateBackStories("Station Science", Agent.Name, "station science experiment", experimentType.title, new System.Random().Next(), true, true, true);
         }
         protected override string GetSynopsys()
         {
-            return "We need you to complete " + experimentType.title + " in orbit around " + targetBody.theName + ", and return it to Kerbin for recovery";
+            return Localizer.Format("#autoLOC_StatSciContract_Blurb", experimentType.title, targetBody.name);
         }
         protected override string MessageCompleted()
         {
-            return "You have successfully performed " + experimentType.title + " in orbit around " + targetBody.theName;
+            return Localizer.Format("#autoLOC_StatSciContract_Completed", experimentType.title, targetBody.name);
         }
 
         protected override void OnCompleted()
@@ -400,7 +388,6 @@ namespace StationScience.Contracts
 
         public override bool MeetRequirements()
         {
-
             CelestialBodySubtree progress = null;
             foreach (var node in ProgressTracking.Instance.celestialBodyNodes)
             {
@@ -409,10 +396,10 @@ namespace StationScience.Contracts
             }
             if (progress == null)
             {
-                Debug.LogError("ProgressNode for Kerbin not found, terminating");
+                StnSciScenario.LogError("ProgressNode for Kerbin not found, terminating");
                 return false;
             }
-            if(progress.orbit.IsComplete && 
+            if (progress.orbit.IsComplete && 
                   ( IsPartUnlocked("dockingPort1") ||
                    IsPartUnlocked("dockingPort2") ||
                    IsPartUnlocked("dockingPort3") ||

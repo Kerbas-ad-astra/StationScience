@@ -23,135 +23,11 @@ using UnityEngine;
 using KSP;
 using Contracts;
 using Contracts.Parameters;
+using KSP.Localization;
 
 namespace StationScience.Contracts.Parameters
 {
-    /*
-    public class UnlockPartsParameter : ContractParameter
-    {
-        List<AvailablePart> parts;
-
-        public UnlockPartsParameter()
-        {
-            this.Enabled = true;
-            this.DisableOnStateChange = true;
-            this.parts = new List<AvailablePart>();
-        }
-
-        public UnlockPartsParameter(IEnumerable<AvailablePart> p)
-        {
-            this.Enabled = true;
-            this.DisableOnStateChange = true;
-            SetParts(p);
-            doUpdate();
-        }
-
-        public UnlockPartsParameter(string p)
-        {
-            this.Enabled = true;
-            this.DisableOnStateChange = true;
-            SetParts(p);
-            doUpdate();
-        }
-
-        public void SetParts(IEnumerable<AvailablePart> p)
-        {
-            this.parts = new List<AvailablePart>(p);
-        }
-
-        public void SetParts(string p)
-        {
-            this.parts = new List<AvailablePart>();
-            foreach (string s in p.Split(','))
-            {
-                AvailablePart a = PartLoader.getPartInfoByName(s);
-                if (a != null)
-                    this.parts.Add(a);
-                else
-                    Debug.LogError("Part not found: " + s);
-            }
-        }
-
-        public List<AvailablePart> GetParts()
-        {
-            return new List<AvailablePart>(this.parts);
-        }
-
-        protected override string GetHashString()
-        {
-            return "test";
-        }
-
-        public string GetReadableList()
-        {
-            StringBuilder ret = new StringBuilder("");
-            for (int i = 0; i < this.parts.Count; i++)
-            {
-                if (i > 0)
-                {
-                    if (i == this.parts.Count - 1)
-                        ret.Append(" and ");
-                    else
-                        ret.Append(", ");
-                }
-                ret.Append(this.parts[i].title);
-            }
-            return ret.ToString();
-        }
-
-        public string GetNameList()
-        {
-            return string.Join(",", parts.Select(part => part.name).ToArray());
-        }
-
-        protected override string GetTitle()
-        {
-            return "Research " + GetReadableList();
-        }
-
-        protected override void OnRegister()
-        {
-            GameEvents.OnPartPurchased.Add(OnPartPurchased);
-            GameEvents.OnTechnologyResearched.Add(OnTechnologyResearched);
-        }
-        protected override void OnUnregister()
-        {
-            GameEvents.OnPartPurchased.Remove(OnPartPurchased);
-            GameEvents.OnTechnologyResearched.Remove(OnTechnologyResearched);
-        }
-
-        private void OnPartPurchased(AvailablePart a)
-        {
-            doUpdate();
-        }
-
-        private void OnTechnologyResearched(GameEvents.HostTargetAction<RDTech, RDTech.OperationResult> a)
-        {
-            doUpdate();
-        }
-
-        private void doUpdate()
-        {
-            if (parts.All(part => ResearchAndDevelopment.PartTechAvailable(part) && ResearchAndDevelopment.PartModelPurchased(part)))
-                SetComplete();
-            else
-                SetIncomplete();
-        }
-
-        protected override void OnSave(ConfigNode node)
-        {
-            base.OnSave(node);
-            node.AddValue("parts", GetNameList());
-        }
-        protected override void OnLoad(ConfigNode node)
-        {
-            base.OnLoad(node);
-            string parts = node.GetValue("parts");
-            SetParts(parts);
-            doUpdate();
-        }
-    }*/
-
+    
     public interface PartRelated
     {
         AvailablePart GetPartType();
@@ -202,14 +78,12 @@ namespace StationScience.Contracts.Parameters
 
         protected override string GetTitle()
         {
-            return "Complete " + experimentType.title + " in orbit around " + targetBody.theName;
+            return Localizer.Format("#autoLOC_StatSciParam_Title", experimentType.title, targetBody.GetDisplayName());
         }
 
         protected override string GetNotes()
         {
-            return "Launch a new experiment part (" + experimentType.title +
-                "), bring it into orbit around " + targetBody.theName +
-                ", complete the experiment, return it (with results inside) to Kerbin and recover it";
+            return Localizer.Format("#autoLOC_StatSciParam_Notes", experimentType.title, targetBody.GetDisplayName());
         }
 
         private bool SetExperiment(string exp)
@@ -217,7 +91,7 @@ namespace StationScience.Contracts.Parameters
             experimentType = PartLoader.getPartInfoByName(exp);
             if (experimentType == null)
             {
-                Debug.LogError("Couldn't find experiment part: " + exp);
+                StnSciScenario.LogError("Couldn't find experiment part: " + exp);
                 return false;
             }
             return true;
@@ -233,7 +107,7 @@ namespace StationScience.Contracts.Parameters
             targetBody = FlightGlobals.Bodies.FirstOrDefault(body => body.bodyName.ToLower() == planet.ToLower());
             if (targetBody == null)
             {
-                Debug.LogError("Couldn't find planet: " + planet);
+                StnSciScenario.LogError("Couldn't find planet: " + planet);
                 return false;
             }
             return true;
@@ -294,8 +168,8 @@ namespace StationScience.Contracts.Parameters
         {
             AvailablePart experimentType = StnSciParameter.getExperimentType(this);
             if (experimentType == null)
-                return "Launch new experiment pod";
-            return "Launch new " + experimentType.title;
+                return Localizer.Format("#autoLOC_StatSciNewPod_TitleA");
+            return Localizer.Format("#autoLOC_StatSciNewPod_TitleB", experimentType.title);
         }
 
         protected override void OnRegister()
@@ -311,7 +185,6 @@ namespace StationScience.Contracts.Parameters
 
         private void OnVesselCreate(Vessel vessel)
         {
-            Debug.Log("OnVesselCreate");
             AvailablePart experimentType = StnSciParameter.getExperimentType(this);
             if (experimentType == null)
                 return;
@@ -330,11 +203,10 @@ namespace StationScience.Contracts.Parameters
 
         private void OnVesselSituationChange(GameEvents.HostedFromToAction<Vessel,Vessel.Situations> arg)
         {
-            Debug.Log("OnVesselSituationChanged");
             if(!((arg.from == Vessel.Situations.LANDED || arg.from == Vessel.Situations.PRELAUNCH) &&
                   (arg.to == Vessel.Situations.FLYING || arg.to == Vessel.Situations.SUB_ORBITAL)))
                 return;
-            if (arg.host.mainBody.theName != "Kerbin")
+            if (arg.host.mainBody.name != "Kerbin")
                 return;
             AvailablePart experimentType = StnSciParameter.getExperimentType(this);
             if (experimentType == null)
@@ -423,15 +295,15 @@ namespace StationScience.Contracts.Parameters
 
         protected override string GetHashString()
         {
-            return "do experiment " + this.GetHashCode();
+            return Localizer.Format("#autoLOC_StatSciDoExp_Hash", this.GetHashCode());
         }
         protected override string GetTitle()
         {
             CelestialBody targetBody = StnSciParameter.getTargetBody(this);
             if (targetBody == null)
-                return "Complete in orbit";
+                return Localizer.Format("#autoLOC_StatSciDoExp_TitleA");
             else
-                return "Complete in orbit around " + targetBody.theName;
+                return Localizer.Format("#autoLOC_StatSciDoExp_TitleB", targetBody.GetDisplayName());
         }
 
         private float lastUpdate = 0;
@@ -446,7 +318,6 @@ namespace StationScience.Contracts.Parameters
             if (targetBody == null || experimentType == null)
             if (targetBody == null || experimentType == null)
             {
-                Debug.Log("targetBody or experimentType is null");
                 return;
             }
             lastUpdate = UnityEngine.Time.realtimeSinceStartup;
@@ -506,7 +377,7 @@ namespace StationScience.Contracts.Parameters
         }
         protected override string GetTitle()
         {
-            return "Recover at Kerbin";
+            return Localizer.Format("#autoLOC_StatSciRetParam_Title");
         }
 
         protected override void OnRegister()
@@ -522,12 +393,10 @@ namespace StationScience.Contracts.Parameters
 
         private void OnRecovered(ProtoVessel pv, bool dummy)
         {
-            Debug.Log("Recovered " + pv.vesselName);
             CelestialBody targetBody = StnSciParameter.getTargetBody(this);
             AvailablePart experimentType = StnSciParameter.getExperimentType(this);
             if (targetBody == null || experimentType == null)
             {
-                Debug.Log("targetBody or experimentType is null");
                 return;
             }
             foreach (ProtoPartSnapshot part in pv.protoPartSnapshots)
@@ -549,7 +418,7 @@ namespace StationScience.Contracts.Parameters
                             }
                             catch(Exception e)
                             {
-                                Debug.LogError(e.ToString());
+                                StnSciScenario.LogError(e.ToString());
                                 continue;
                             }
                             if (launched >= this.Root.DateAccepted && completed >= launched)
@@ -577,12 +446,11 @@ namespace StationScience.Contracts.Parameters
 
         private void OnRecovery(Vessel vessel)
         {
-            Debug.Log("Recovering " + vessel.vesselName);
+            StnSciScenario.Log("Recovering " + vessel.vesselName);
             CelestialBody targetBody = StnSciParameter.getTargetBody(this);
             AvailablePart experimentType = StnSciParameter.getExperimentType(this);
             if (targetBody == null || experimentType == null)
             {
-                Debug.Log("targetBody or experimentType is null");
                 return;
             }
             foreach (Part part in vessel.Parts)
